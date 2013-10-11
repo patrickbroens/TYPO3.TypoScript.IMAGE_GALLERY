@@ -48,6 +48,34 @@ class ImageGalleryContentObject {
 	protected $fileObjects = array();
 
 	/**
+	 * The amount of files
+	 *
+	 * @var int
+	 */
+	protected $fileCount = 0;
+
+	/**
+	 * The amount of rows
+	 *
+	 * @var int
+	 */
+	protected $rows = 0;
+
+	/**
+	 * The amount of columns
+	 *
+	 * @var int
+	 */
+	protected $columns = 0;
+
+	/**
+	 * The dimensions of each image
+	 *
+	 * @var array
+	 */
+	protected $imageDimensions = array();
+
+	/**
 	 * Renders the application defined cObject IMAGE_GALLERY
 	 *
 	 * @param string $typoScriptObjectName Name of the object
@@ -64,10 +92,16 @@ class ImageGalleryContentObject {
 	) {
 		$this->contentObject = $contentObject;
 		$this->typoScriptConfiguration = $typoScriptConfiguration;
+
 		$this->getFileObjects();
 		$this->sortFileObjects();
+		$GLOBALS['TSFE']->register['FILES_COUNT'] = $this->fileCount = count($this->fileObjects);
 
-		$GLOBALS['TSFE']->register['FILES_COUNT'] = count($this->fileObjects);
+		$this->calculateRowsAndColumns();
+		$GLOBALS['TSFE']->register['GALLERY_COLUMNS_COUNT'] = $this->columns;
+		$GLOBALS['TSFE']->register['GALLERY_ROWS_COUNT'] = $this->rows;
+
+		$this->calculateImageWidths();
 
 		$content = $this->renderFilesThroughRenderObj();
 		$content = $this->contentObject->stdWrap($content, $this->typoScriptConfiguration['stdWrap.']);
@@ -117,6 +151,77 @@ class ImageGalleryContentObject {
 	}
 
 	/**
+	 * Calculate the rows and columns
+	 *
+	 * @return void
+	 */
+	protected function calculateRowsAndColumns() {
+			// Get the amount of columns from Typoscript
+		$columns = intval($this->contentObject->stdWrap(
+			$this->typoScriptConfiguration['columns'],
+			$this->typoScriptConfiguration['columns.'])
+		);
+
+			// If no columns defined, set it to 1
+		$columns = $columns > 1 ? $columns : 1;
+
+			// When more columns than images, set the columns to the amount of images
+		if ($columns > $this->fileCount) {
+			$columns = $this->fileCount;
+		}
+
+			// Calculate the rows from the amount of files and the columns
+		$rows = ceil($this->fileCount / $columns);
+
+			// Get the amount of rows from TypoScript
+		$rowsDefined = intval($this->contentObject->stdWrap(
+			$this->typoScriptConfiguration['rows'],
+			$this->typoScriptConfiguration['rows.'])
+		);
+
+			// If the rows are defined in TypoScript, the columns need to be recalculated
+		if ($rowsDefined > 1) {
+			$rows = $rowsDefined;
+			if ($rows > $this->fileCount) {
+				$rows = $this->fileCount;
+			}
+			if ($rows > 1) {
+				$columns = ceil($this->fileCount / $rows);
+			} else {
+				$columns = $this->fileCount;
+			}
+		}
+
+		$this->columns = $columns;
+		$this->rows = $rows;
+	}
+
+	/**
+	 * Calculate the width of the images
+	 *
+	 * Currently simple, not taking into account
+	 * - equalH (needs gifbuilder for each image, so we need to return an array for the width of each image)
+	 * - colSpace
+	 * - border
+	 * - borderThick
+	 * - borderSpace
+	 */
+	protected function calculateImageWidths() {
+		$galleryWidth = intval($this->contentObject->stdWrap(
+			$this->typoScriptConfiguration['width'],
+			$this->typoScriptConfiguration['width.'])
+		);
+
+		$imageWidth = intval($galleryWidth / $this->columns);
+
+		foreach ($this->fileObjects as $key => $fileObject) {
+			$this->imageDimensions[$key] = array(
+				'width' => 	$imageWidth
+			);
+		}
+	}
+
+	/**
 	 * Render each file though the renderObj
 	 *
 	 * optionSplit will be applied to allow different settings for each file
@@ -134,7 +239,10 @@ class ImageGalleryContentObject {
 		$fileObjectCounter = 0;
 
 		foreach ($this->fileObjects as $key => $fileObject) {
-			$GLOBALS['TSFE']->register['FILE_NUM_CURRENT'] = $fileObjectCounter;
+			$GLOBALS['TSFE']->register['IMAGE_NUM_CURRENT'] = $fileObjectCounter;
+			$GLOBALS['TSFE']->register['GALLERY_CURRENT_COLUMN'] = $fileObjectCounter % $this->columns + 1;
+			$GLOBALS['TSFE']->register['GALLERY_CURRENT_ROW'] = intval($fileObjectCounter / $this->columns + 1);
+			$GLOBALS['TSFE']->register['GALLERY_CURRENT_IMAGE_WIDTH'] = $this->imageDimensions[$key]['width'];
 
 			$this->contentObject->setCurrentFile($fileObject);
 

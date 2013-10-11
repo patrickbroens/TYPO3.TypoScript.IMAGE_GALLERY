@@ -11,15 +11,33 @@ tt_content.image {
 			fieldName = image
 		}
 
-		renderObj = IMAGE
-		renderObj {
-			file {
-				import {
-					data = file:current:publicUrl
-				}
+		columns.field = imagecols
+
+		width = {$styles.content.imgtext.maxW}
+		width {
+			override {
+				data = register:maxImageWidth
 			}
-			titleText {
-				data = file:current:title
+		}
+
+		renderObj = COA
+		renderObj {
+			10 = IMAGE
+			10 {
+				file {
+					import {
+						data = file:current:publicUrl
+					}
+					width {
+						data = register:GALLERY_CURRENT_IMAGE_WIDTH
+						override {
+							field = imagewidth
+						}
+					}
+				}
+				titleText {
+					data = file:current:title
+				}
 			}
 		}
 	}

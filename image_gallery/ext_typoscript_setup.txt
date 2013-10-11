@@ -1,0 +1,26 @@
+tt_content.image >
+tt_content.image = COA
+tt_content.image {
+
+	10 = < lib.stdheader
+
+	20 = IMAGE_GALLERY
+	20 {
+
+		references {
+			fieldName = image
+		}
+
+		renderObj = IMAGE
+		renderObj {
+			file {
+				import {
+					data = file:current:publicUrl
+				}
+			}
+			titleText {
+				data = file:current:title
+			}
+		}
+	}
+}

@@ -76,6 +76,20 @@ class ImageGalleryContentObject {
 	protected $imageDimensions = array();
 
 	/**
+	 * The defined width of the gallery
+	 *
+	 * @var int
+	 */
+	protected $definedWidth = 0;
+
+	/**
+	 * The calculated width of the gallery
+	 *
+	 * @var int
+	 */
+	protected $calculatedWidth = 0;
+
+	/**
 	 * Renders the application defined cObject IMAGE_GALLERY
 	 *
 	 * @param string $typoScriptObjectName Name of the object
@@ -93,15 +107,12 @@ class ImageGalleryContentObject {
 		$this->contentObject = $contentObject;
 		$this->typoScriptConfiguration = $typoScriptConfiguration;
 
-		$this->getFileObjects();
+		$this->getFileObjects(\TYPO3\CMS\Core\Resource\AbstractFile::FILETYPE_IMAGE);
 		$this->sortFileObjects();
-		$GLOBALS['TSFE']->register['FILES_COUNT'] = $this->fileCount = count($this->fileObjects);
 
 		$this->calculateRowsAndColumns();
-		$GLOBALS['TSFE']->register['GALLERY_COLUMNS_COUNT'] = $this->columns;
-		$GLOBALS['TSFE']->register['GALLERY_ROWS_COUNT'] = $this->rows;
 
-		$this->calculateImageWidths();
+		$this->calculateImageWidthsAndHeights();
 
 		$content = $this->renderFilesThroughRenderObj();
 		$content = $this->contentObject->stdWrap($content, $this->typoScriptConfiguration['stdWrap.']);
@@ -121,6 +132,7 @@ class ImageGalleryContentObject {
 			$this->typoScriptConfiguration
 		);
 		$this->fileObjects = $fileResource->getFileObjects();
+		$this->fileCount = count($this->fileObjects);
 	}
 
 	/**
@@ -131,7 +143,10 @@ class ImageGalleryContentObject {
 	protected function sortFileObjects() {
 		$sortingProperty = '';
 		if ($this->typoScriptConfiguration['sorting'] || $this->typoScriptConfiguration['sorting.']) {
-			$sortingProperty = $this->stdWrapValue('sorting', $this->typoScriptConfiguration);
+			$sortingProperty = $this->contentObject->stdWrap(
+				$this->typoScriptConfiguration['sorting'],
+				$this->typoScriptConfiguration['sorting.']
+			);
 		}
 		if ($sortingProperty !== '' && count($this->fileObjects) > 1) {
 			usort(
@@ -157,9 +172,11 @@ class ImageGalleryContentObject {
 	 */
 	protected function calculateRowsAndColumns() {
 			// Get the amount of columns from Typoscript
-		$columns = intval($this->contentObject->stdWrap(
-			$this->typoScriptConfiguration['columns'],
-			$this->typoScriptConfiguration['columns.'])
+		$columns = intval(
+			$this->contentObject->stdWrap(
+				$this->typoScriptConfiguration['columns'],
+				$this->typoScriptConfiguration['columns.']
+			)
 		);
 
 			// If no columns defined, set it to 1
@@ -197,27 +214,171 @@ class ImageGalleryContentObject {
 	}
 
 	/**
-	 * Calculate the width of the images
+	 * Calculate the width/height of the images
 	 *
 	 * Currently simple, not taking into account
-	 * - equalH (needs gifbuilder for each image, so we need to return an array for the width of each image)
 	 * - colSpace
 	 * - border
 	 * - borderThick
 	 * - borderSpace
+	 * - textMargin
+	 *
+	 * @return void
 	 */
-	protected function calculateImageWidths() {
-		$galleryWidth = intval($this->contentObject->stdWrap(
-			$this->typoScriptConfiguration['width'],
-			$this->typoScriptConfiguration['width.'])
+	protected function calculateImageWidthsAndHeights() {
+		$galleryWidth = $this->definedWidth = intval(
+			$this->contentObject->stdWrap(
+				$this->typoScriptConfiguration['width'],
+				$this->typoScriptConfiguration['width.']
+			)
 		);
 
-		$imageWidth = intval($galleryWidth / $this->columns);
+		$equalImageHeight = intval(
+			$this->contentObject->stdWrap(
+				$this->typoScriptConfiguration['images.']['height'],
+				$this->typoScriptConfiguration['images.']['height.']
+			)
+		);
 
-		foreach ($this->fileObjects as $key => $fileObject) {
-			$this->imageDimensions[$key] = array(
-				'width' => 	$imageWidth
-			);
+		$equalImageWidth = intval(
+			$this->contentObject->stdWrap(
+				$this->typoScriptConfiguration['images.']['width'],
+				$this->typoScriptConfiguration['images.']['width.']
+			)
+		);
+
+			// User entered a predefined height
+		if ($equalImageHeight) {
+			$imageScalingCorrection = 1;
+			$maximumRowWidth = 0;
+
+				// Calculate the scaling correction when the total of images is wider than the gallery width
+			for ($row = 1; $row <= $this->rows; $row++) {
+				$totalRowWidth = 0;
+				for ($column = 1; $column <= $this->columns; $column++) {
+					$fileKey = (($row - 1) * $this->columns) + $column - 1;
+					if ($fileKey > $this->fileCount - 1) {
+						break 2;
+					}
+					$currentImageScaling = $equalImageHeight / $this->fileObjects[$fileKey]->getProperty('height');
+					$totalRowWidth += $this->fileObjects[$fileKey]->getProperty('width') * $currentImageScaling;
+				}
+				$maximumRowWidth = max($totalRowWidth, $maximumRowWidth);
+				$imagesInRowScaling = $totalRowWidth / $galleryWidth;
+				$imageScalingCorrection = max($imagesInRowScaling, $imageScalingCorrection);
+			}
+
+				// Set the corrected dimensions for each image
+			foreach ($this->fileObjects as $key => $fileObject) {
+				$imageHeight = floor($equalImageHeight / $imageScalingCorrection);
+				$imageWidth = floor(
+					$fileObject->getProperty('width') * ($imageHeight / $fileObject->getProperty('height'))
+				);
+				$this->imageDimensions[$key] = array(
+					'width' => 	$imageWidth,
+					'height' => $imageHeight
+				);
+			}
+
+			$this->calculatedWidth = floor($maximumRowWidth / $imageScalingCorrection);
+
+			// User entered a predefined width
+		} elseif ($equalImageWidth) {
+			$imageScalingCorrection = 1;
+
+				// Calculate the scaling correction when the total of images is wider than the gallery width
+			$totalRowWidth = $this->columns * $equalImageWidth;
+			$imagesInRowScaling = $totalRowWidth / $galleryWidth;
+			$imageScalingCorrection = max($imagesInRowScaling, $imageScalingCorrection);
+
+				// Set the corrected dimensions for each image
+			foreach ($this->fileObjects as $key => $fileObject) {
+				$imageWidth = floor($equalImageWidth / $imageScalingCorrection);
+				$imageHeight = floor(
+					$fileObject->getProperty('height') * ($imageWidth / $fileObject->getProperty('width'))
+				);
+				$this->imageDimensions[$key] = array(
+					'width' => 	$imageWidth,
+					'height' => $imageHeight
+				);
+			}
+
+			$this->calculatedWidth = floor($totalRowWidth / $imageScalingCorrection);
+
+			// Automatic setting of width and height
+		} else {
+			$imageWidth = intval($galleryWidth / $this->columns);
+
+			foreach ($this->fileObjects as $key => $fileObject) {
+				$imageHeight = floor(
+					$fileObject->getProperty('height') * ($imageWidth / $fileObject->getProperty('width'))
+				);
+				$this->imageDimensions[$key] = array(
+					'width' => 	$imageWidth,
+					'height' => $imageHeight
+				);
+			}
+
+			$this->calculatedWidth =  $galleryWidth;
+		}
+	}
+
+	/**
+	 * Add page style when a no_wrap is used
+	 *
+	 * @return string The class in the page style
+	 */
+	protected function getGalleryClassBasedOnTextWrap() {
+		$galleryClass = '';
+
+		$textWrap = (boolean) $this->contentObject->stdWrap(
+			$this->typoScriptConfiguration['textWrap'],
+			$this->typoScriptConfiguration['textWrap.']
+		);
+
+		if (!$textWrap) {
+			if ($this->definedWidth === $this->calculatedWidth) {
+				$this->addPageStyle(
+					'.csc-textpic-intext-right-nowrap .csc-textpic-text',
+					'margin-right: ' . $this->definedWidth . 'px;'
+				);
+				$this->addPageStyle(
+					'.csc-textpic-intext-left-nowrap .csc-textpic-text',
+					'margin-left: ' . $this->definedWidth . 'px;'
+				);
+			} else {
+				$this->addPageStyle(
+					'.csc-textpic-intext-right-nowrap.csc-textpic-intext-nowrap-' . $this->calculatedWidth . ' .csc-textpic-text',
+					'margin-right: ' . $this->calculatedWidth . 'px;'
+				);
+				$this->addPageStyle(
+					'.csc-textpic-intext-left-nowrap.csc-textpic-intext-nowrap-' . $this->calculatedWidth . ' .csc-textpic-text',
+					'margin-left: ' . $this->calculatedWidth . 'px;'
+				);
+				$galleryClass = 'csc-textpic-intext-nowrap-' . $this->calculatedWidth;
+			}
+		}
+
+		return $galleryClass;
+	}
+
+	/**
+	 * Add a style to the page, specific for this page
+	 *
+	 * The selector can be a contextual selector, like '#id .class p'
+	 * The presence of the selector is checked to avoid multiple entries of the
+	 * same selector.
+	 *
+	 * @param string $selector The selector
+	 * @param string $declaration The declaration
+	 * @return void
+	 */
+	protected function addPageStyle($selector, $declaration) {
+		if (!isset($GLOBALS['TSFE']->tmpl->setup['plugin.']['tx_cssstyledcontent.']['_CSS_PAGE_STYLE'])) {
+			$GLOBALS['TSFE']->tmpl->setup['plugin.']['tx_cssstyledcontent.']['_CSS_PAGE_STYLE'] = array();
+		}
+		if (!isset($GLOBALS['TSFE']->tmpl->setup['plugin.']['tx_cssstyledcontent.']['_CSS_PAGE_STYLE'][$selector])) {
+			$GLOBALS['TSFE']->tmpl->setup['plugin.']['tx_cssstyledcontent.']['_CSS_PAGE_STYLE'][$selector] = TAB . $selector . ' { ' . $declaration . ' }';
 		}
 	}
 
@@ -231,28 +392,57 @@ class ImageGalleryContentObject {
 	protected function renderFilesThroughRenderObj() {
 		$content = '';
 
+		$GLOBALS['TSFE']->register['FILES_COUNT'] = $this->fileCount;
+		$GLOBALS['TSFE']->register['GALLERY_COLUMNS_COUNT'] = $this->columns;
+		$GLOBALS['TSFE']->register['GALLERY_ROWS_COUNT'] = $this->rows;
+
+		$galleryClass = $this->getGalleryClassBasedOnTextWrap();
+		if ($galleryClass) {
+			$GLOBALS['TSFE']->register['GALLERY_CLASS'] = $galleryClass;
+		}
+
 		$splitConfiguration = $GLOBALS['TSFE']->tmpl->splitConfArray(
 			$this->typoScriptConfiguration,
 			count($this->fileObjects)
 		);
 
-		$fileObjectCounter = 0;
+		for ($row = 1; $row <= $this->rows; $row++) {
+			for ($column = 1; $column <= $this->columns; $column++) {
 
-		foreach ($this->fileObjects as $key => $fileObject) {
-			$GLOBALS['TSFE']->register['IMAGE_NUM_CURRENT'] = $fileObjectCounter;
-			$GLOBALS['TSFE']->register['GALLERY_CURRENT_COLUMN'] = $fileObjectCounter % $this->columns + 1;
-			$GLOBALS['TSFE']->register['GALLERY_CURRENT_ROW'] = intval($fileObjectCounter / $this->columns + 1);
-			$GLOBALS['TSFE']->register['GALLERY_CURRENT_IMAGE_WIDTH'] = $this->imageDimensions[$key]['width'];
+				$fileKey = (($row - 1) * $this->columns) + $column - 1;
 
-			$this->contentObject->setCurrentFile($fileObject);
+				$GLOBALS['TSFE']->register['IMAGE_NUM_CURRENT'] = $fileKey;
+				$GLOBALS['TSFE']->register['GALLERY_CURRENT_COLUMN'] = $column;
+				$GLOBALS['TSFE']->register['GALLERY_CURRENT_ROW'] = $row;
+				$GLOBALS['TSFE']->register['GALLERY_CURRENT_IMAGE_WIDTH'] = $this->imageDimensions[$fileKey]['width'];
+				$GLOBALS['TSFE']->register['GALLERY_CURRENT_IMAGE_HEIGHT'] = $this->imageDimensions[$fileKey]['height'];
 
-			$content .= $this->contentObject->cObjGetSingle(
-				$splitConfiguration[$key]['renderObj'],
-				$splitConfiguration[$key]['renderObj.']
-			);
+				$GLOBALS['TSFE']->register['GALLERY_ROW_ITERATION_FIRST'] = $row === 1 ? TRUE : FALSE;
+				$GLOBALS['TSFE']->register['GALLERY_ROW_ITERATION_LAST'] = $row === $this->rows ? TRUE : FALSE;
 
-			$fileObjectCounter++;
+				$GLOBALS['TSFE']->register['GALLERY_COLUMN_ITERATION_FIRST'] = $column === 1 ? TRUE : FALSE;
+				$GLOBALS['TSFE']->register['GALLERY_COLUMN_ITERATION_LAST'] = $column === $this->columns ? TRUE : FALSE;
+
+					// Needed when there are more images in one column, like with option noRows (currently not taken into account)
+				$GLOBALS['TSFE']->register['GALLERY_IMAGE_ITERATION_FIRST'] = TRUE;
+				$GLOBALS['TSFE']->register['GALLERY_IMAGE_ITERATION_LAST'] = TRUE;
+
+					// If the next file object does not exist, this is the last image
+				if (!$this->fileObjects[$fileKey + 1]) {
+					$GLOBALS['TSFE']->register['GALLERY_ROW_ITERATION_LAST'] = TRUE;
+					$GLOBALS['TSFE']->register['GALLERY_COLUMN_ITERATION_LAST'] = TRUE;
+				}
+
+				$this->contentObject->setCurrentFile($this->fileObjects[$fileKey]);
+
+				$content .= $this->contentObject->cObjGetSingle(
+					$splitConfiguration[$fileKey]['renderObj'],
+					$splitConfiguration[$fileKey]['renderObj.']
+				);
+			}
 		}
+
+		$content = $this->contentObject->stdWrap($content, $this->typoScriptConfiguration);
 
 		return $content;
 	}

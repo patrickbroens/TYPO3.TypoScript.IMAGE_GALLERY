@@ -1,27 +1,133 @@
-tt_content.image >
-tt_content.image = COA
-tt_content.image {
+/**
+ * IMAGE_GALLERY
+ *
+ * The following adds a new TypoScript Content Object called IMAGE_GALLERY
+ * It is based on FILES, but only for image rendering within css_styled_content tt_content.image and tt_content.textpic
+ * The rendering is HTML5
+ *
+ * Not taking the following configuration into account:
+ * - colSpace
+ * - border
+ * - borderThick
+ * - borderSpace
+ * - noRows
+ * - textMargin
+ * - image_compression
+ * - image_effects
+ * - imagecaption_position
+ */
 
-	10 = < lib.stdheader
+lib.imageGallery = IMAGE_GALLERY
+lib.imageGallery {
 
-	20 = IMAGE_GALLERY
-	20 {
+	# Define the image resource
+	references {
+		fieldName = image
+	}
 
-		references {
-			fieldName = image
+	# Set the amount of columns
+	columns {
+		field = imagecols
+	}
+
+	# Class generation for no_wrap if value is empty
+	textWrap {
+		cObject = TEXT
+		cObject {
+			value = 1
+			if {
+				# 25 = intext-right-nowrap, 26 = intext-left-nowrap
+				value = 25,26
+				isInList {
+					field = imageorient
+				}
+				negate = 1
+			}
 		}
+	}
 
-		columns.field = imagecols
+	# Set the width of the gallery
+	width {
+		cObject = COA
+		cObject {
+			# Use maxW when the gallery is outside the text
+			# Override with register:maxImageWidth when set
+			10 = TEXT
+			10 {
+				value = {$styles.content.imgtext.maxW}
+				override {
+					data = register:maxImageWidth
+				}
+				if {
+					value = 15
+					isLessThan {
+						field = imageorient
+					}
+				}
+			}
+			# Use maxWInText when the gallery is inside the text
+			# Override with register:maxImageWidthInText when set
+			20 = TEXT
+			20 {
+				value = {$styles.content.imgtext.maxWInText}
+				override {
+					data = register:maxImageWidthInText
+				}
+				if {
+					value = 16
+					isGreaterThan {
+						field = imageorient
+					}
+				}
+			}
+		}
+	}
 
-		width = {$styles.content.imgtext.maxW}
+	images {
+		# Set the height of a single image
+		# When the total width exceeds the width of the gallery, the height will be adapted accordingly
+		# Setting a height will overrule the width
+		height {
+			field = imageheight
+		}
+		# Set the width of a single image
+		# When the total width exceeds the width of the gallery, the height will be adapted accordingly
+		# When the height is set, width will not be taken into account
 		width {
-			override {
-				data = register:maxImageWidth
+			field = imagewidth
+		}
+	}
+
+	# Render a single image object
+	renderObj = COA
+	renderObj {
+
+		# Open a new row
+		10 = TEXT
+		10 {
+			value = <div class="csc-textpic-imagerow">
+			if {
+				isTrue {
+					data = register:GALLERY_COLUMN_ITERATION_FIRST
+				}
 			}
 		}
 
-		renderObj = COA
-		renderObj {
+		# Open a new column
+		20 = TEXT
+		20 {
+			value = <div class="csc-textpic-imagecolumn">
+			if {
+				isTrue {
+					data = register:GALLERY_IMAGE_ITERATION_FIRST
+				}
+			}
+		}
+
+		# The image with the caption (if available)
+		30 = COA
+		30 {
+			# The image
 			10 = IMAGE
 			10 {
 				file {
@@ -30,15 +136,207 @@ tt_content.image {
 					}
 					width {
 						data = register:GALLERY_CURRENT_IMAGE_WIDTH
-						override {
-							field = imagewidth
-						}
 					}
 				}
 				titleText {
 					data = file:current:title
 				}
+				altText {
+					data = file:current:alternative
+				}
+				stdWrap {
+					typolink {
+						parameter {
+							data = file:current:link
+						}
+					}
+				}
 			}
+
+			# The caption, if provided
+			20 = TEXT
+			20 {
+				data = file:current:description
+				wrap = <figcaption class="csc-textpic-caption"> | </figcaption>
+				if {
+					isTrue {
+						data = file:current:description
+					}
+				}
+			}
+
+			wrap = <div class="csc-textpic-image"> | </div>
+			wrap {
+				override = <figure class="csc-textpic-image">|</figure>
+				override {
+					if {
+						isTrue {
+							data = file:current:description
+						}
+					}
+				}
+			}
+		}
+
+		# Close the column
+		40 = TEXT
+		40 {
+			value = </div>
+			if {
+				isTrue {
+					data = register:GALLERY_IMAGE_ITERATION_LAST
+				}
+			}
+		}
+
+		# Close the row
+		50 = TEXT
+		50 {
+			value = </div>
+			if {
+				isTrue {
+					data = register:GALLERY_COLUMN_ITERATION_LAST
+				}
+			}
+		}
+	}
+
+	# Wrap around the whole gallery
+	dataWrap = <div class="csc-textpic-imagewrap" {register:GALLERY_NOWRAP} data-csc-cols="{register:GALLERY_COLUMNS_COUNT}" data-csc-images="{register:FILES_COUNT}"> | </div>
+
+	# Extra wrap for centered gallery
+	innerWrap = <div class="csc-textpic-center-outer"><div class="csc-textpic-center-inner"> | </div></div>
+	innerWrap {
+		if {
+			# 0 = above-center, 8 = below-center
+			value = 0,8
+			isInList {
+				field = imageorient
+			}
+		}
+	}
+}
+
+tt_content.textpic >
+tt_content.textpic = COA
+tt_content.textpic {
+
+	10 = < lib.stdheader
+
+	20 = COA
+	20 {
+		# By default, the gallery is rendered in front of the text
+		10 = < lib.imageGallery
+		20 < tt_content.text.20
+		20 {
+			wrap = <div class="csc-textpic-text"> | </div>
+		}
+
+		stdWrap {
+			# Override when gallery needs to be rendered after the text
+			override {
+				cObject = COA
+				cObject {
+					10 < tt_content.text.20
+					20 {
+						wrap = <div class="csc-textpic-text"> | </div>
+					}
+					20 = < lib.imageGallery
+				}
+				if {
+					# 8 = below-center, 9 = below-right, 10 = below-left
+					value = 8,9,10
+					isInList {
+						field = imageorient
+					}
+				}
+			}
+
+			outerWrap {
+				# Wrap text and images in a div with classes set to the image position and alignment
+				cObject = CASE
+				cObject {
+					key {
+						field = imageorient
+					}
+
+					# above-center
+					default = TEXT
+					default {
+						value = <div class="csc-textpic csc-textpic-center csc-textpic-above"> | </div>
+					}
+
+					# above-right
+					1 < .default
+					1 {
+						value = <div class="csc-textpic csc-textpic-right csc-textpic-above"> | </div>
+					}
+
+					# above-left
+					2 < .default
+					2 {
+						value = <div class="csc-textpic csc-textpic-left csc-textpic-above"> | </div>
+					}
+
+					# below-center
+					8 < .default
+					8 {
+						value = <div class="csc-textpic csc-textpic-center csc-textpic-below"> | </div>
+					}
+
+					# below-right
+					9 < .default
+					9 {
+						value = <div class="csc-textpic csc-textpic-right csc-textpic-below"> | </div>
+					}
+
+					# below-left
+					10 < .default
+					10 {
+						value = <div class="csc-textpic csc-textpic-left csc-textpic-below"> | </div>
+					}
+
+					# intext-right
+					17 < .default
+					17 {
+						value = <div class="csc-textpic csc-textpic-intext-right"> | </div>
+					}
+
+					# intext-left
+					18 < .default
+					18 {
+						value = <div class="csc-textpic csc-textpic-intext-left"> | </div>
+					}
+
+					# intext-right-nowrap
+					25 < .default
+					25 {
+						value = <div class="csc-textpic csc-textpic-intext-right-nowrap {register:GALLERY_CLASS}"> | </div>
+						insertData = 1
+					}
+
+					# intext-left-nowrap
+					26 < .default
+					26 {
+						value = <div class="csc-textpic csc-textpic-intext-left-nowrap {register:GALLERY_CLASS}"> | </div>
+						insertData = 1
+					}
+				}
+			}
+		}
+	}
+}
+
+tt_content.image >
+tt_content.image < tt_content.textpic
+tt_content.image {
+
+	10 = < lib.stdheader
+
+	20 {
+		20 >
+		stdWrap {
+			override >
 		}
 	}
 }

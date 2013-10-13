@@ -55,6 +55,11 @@ class FileResource {
 	protected $fileObjects = array();
 
 	/**
+	 * @var integer
+	 */
+	protected $fileTypeFilter;
+
+	/**
 	 * Default constructor.
 	 *
 	 * @param \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer $contentObject
@@ -70,13 +75,19 @@ class FileResource {
 	 * Returns file objects from references, files, collections and folders
 	 * According to the TypoScript settings
 	 *
+	 * @param integer $fileType Filter for file type
 	 * @return array
 	 */
-	public function getFileObjects() {
+	public function getFileObjects($fileType = NULL) {
+		if ($fileType) {
+			$this->fileTypeFilter = (integer) $fileType;
+		}
+
 		$this->addFileObjectsFromReferences();
 		$this->addFileObjectsFromFiles();
 		$this->addFileObjectsFromCollections();
 		$this->addFileObjectsFromFolders();
+
 		return $this->fileObjects;
 	}
 
@@ -194,16 +205,21 @@ class FileResource {
 	}
 
 	/**
-	 * Adds $newItems to $theArray, which is passed by reference. Array must only consist of numerical keys.
+	 * Adds $newItems to file objects
 	 *
-	 * @param mixed	$newItems Array with new items or single object that's added.
-	 * @param array	$theArray The array the new items should be added to. Must only contain numeric keys (for array_merge() to add items instead of replacing).
+	 * Takes the file type filter into account
+	 *
+	 * @param mixed $newItems Array with new items or single object that's added.
 	 */
 	protected function addToFileObjects($newItems) {
 		if (is_array($newItems)) {
-			$this->fileObjects = array_merge($this->fileObjects, $newItems);
+			foreach ($newItems as $item) {
+				$this->addToFileObjects($item);
+			}
 		} elseif (is_object($newItems)) {
-			$this->fileObjects[] = $newItems;
+			if ($this->fileTypeFilter === NULL || $newItems->getType() === $this->fileTypeFilter) {
+				$this->fileObjects[] = $newItems;
+			}
 		}
 	}
 

@@ -221,14 +221,39 @@ tt_content.textpic >
 tt_content.textpic = COA
 tt_content.textpic {
 
-	10 = < lib.stdheader
+	10 = COA
+	10 {
+		10 = < lib.stdheader
+		if {
+			# 25 = intext-right-nowrap, 26 = intext-left-nowrap
+			value = 25,26
+			isInList {
+				field = imageorient
+			}
+			negate = 1
+		}
+	}
 
 	20 = COA
 	20 {
 		# By default, the gallery is rendered in front of the text
 		10 = < lib.imageGallery
-		20 < tt_content.text.20
+		20 = COA
 		20 {
+			# Render the header in the div with text when no-wrap
+			10 = < lib.stdheader
+			10 {
+				if {
+					# 25 = intext-right-nowrap, 26 = intext-left-nowrap
+					value = 25,26
+					isInList {
+						field = imageorient
+					}
+				}
+			}
+
+			20 < tt_content.text.20
+
 			wrap = <div class="csc-textpic-text"> | </div>
 		}
 
@@ -238,7 +263,7 @@ tt_content.textpic {
 				cObject = COA
 				cObject {
 					10 < tt_content.text.20
-					20 {
+					10 {
 						wrap = <div class="csc-textpic-text"> | </div>
 					}
 					20 = < lib.imageGallery

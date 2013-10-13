@@ -1,7 +1,7 @@
 <?php
 
 ########################################################################
-# Extension Manager/Repository config file for ext "image_gallery".
+# Extension Manager/Repository config file for ext "csc_image_gallery".
 #
 # Auto generated 08-02-2012 20:49
 #

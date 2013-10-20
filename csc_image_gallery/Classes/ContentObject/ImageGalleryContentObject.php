@@ -90,6 +90,13 @@ class ImageGalleryContentObject {
 	protected $calculatedWidth = 0;
 
 	/**
+	 * TRUE when a border is used for the images in the gallery
+	 *
+	 * @var boolean
+	 */
+	protected $borderInUse = FALSE;
+
+	/**
 	 * Renders the application defined cObject IMAGE_GALLERY
 	 *
 	 * @param string $typoScriptObjectName Name of the object
@@ -174,8 +181,8 @@ class ImageGalleryContentObject {
 			// Get the amount of columns from Typoscript
 		$columns = intval(
 			$this->contentObject->stdWrap(
-				$this->typoScriptConfiguration['columns'],
-				$this->typoScriptConfiguration['columns.']
+				$this->typoScriptConfiguration['columns.']['amount'],
+				$this->typoScriptConfiguration['columns.']['amount.']
 			)
 		);
 
@@ -216,12 +223,8 @@ class ImageGalleryContentObject {
 	/**
 	 * Calculate the width/height of the images
 	 *
-	 * Currently simple, not taking into account
-	 * - colSpace
-	 * - border
-	 * - borderThick
-	 * - borderSpace
-	 * - textMargin
+	 * Based on the width of the gallery, defined equal width or height by a user, the spacing between columns and
+	 * the use of a border, defined by user, where the border width and padding are taken into account
 	 *
 	 * @return void
 	 */
@@ -235,17 +238,53 @@ class ImageGalleryContentObject {
 
 		$equalImageHeight = intval(
 			$this->contentObject->stdWrap(
-				$this->typoScriptConfiguration['images.']['height'],
-				$this->typoScriptConfiguration['images.']['height.']
+				$this->typoScriptConfiguration['image.']['height'],
+				$this->typoScriptConfiguration['image.']['height.']
 			)
 		);
 
 		$equalImageWidth = intval(
 			$this->contentObject->stdWrap(
-				$this->typoScriptConfiguration['images.']['width'],
-				$this->typoScriptConfiguration['images.']['width.']
+				$this->typoScriptConfiguration['image.']['width'],
+				$this->typoScriptConfiguration['image.']['width.']
 			)
 		);
+
+		$columnSpacing = intval(
+			$this->contentObject->stdWrap(
+				$this->typoScriptConfiguration['columns.']['spacing'],
+				$this->typoScriptConfiguration['columns.']['spacing.']
+			)
+		);
+
+		$this->borderInUse = (boolean) $this->contentObject->stdWrap(
+			$this->typoScriptConfiguration['image.']['border.']['on'],
+			$this->typoScriptConfiguration['image.']['border.']['on.']
+		);
+
+		$borderWidth = intval(
+			$this->contentObject->stdWrap(
+				$this->typoScriptConfiguration['image.']['border.']['width'],
+				$this->typoScriptConfiguration['image.']['border.']['width.']
+			)
+		);
+
+		$borderPadding = intval(
+			$this->contentObject->stdWrap(
+				$this->typoScriptConfiguration['image.']['border.']['padding'],
+				$this->typoScriptConfiguration['image.']['border.']['padding.']
+			)
+		);
+
+		$columnSpacingTotal = ($this->columns - 1) * $columnSpacing;
+
+		$galleryWidthMinusBorderAndSpacing = $galleryWidth - $columnSpacingTotal;
+
+		if ($this->borderInUse) {
+			$borderPaddingTotal = ($this->columns * 2) * $borderPadding;
+			$borderWidthTotal = ($this->columns * 2) * $borderWidth;
+			$galleryWidthMinusBorderAndSpacing = $galleryWidthMinusBorderAndSpacing - $borderPaddingTotal - $borderWidthTotal;
+		}
 
 			// User entered a predefined height
 		if ($equalImageHeight) {
@@ -264,7 +303,7 @@ class ImageGalleryContentObject {
 					$totalRowWidth += $this->fileObjects[$fileKey]->getProperty('width') * $currentImageScaling;
 				}
 				$maximumRowWidth = max($totalRowWidth, $maximumRowWidth);
-				$imagesInRowScaling = $totalRowWidth / $galleryWidth;
+				$imagesInRowScaling = $totalRowWidth / $galleryWidthMinusBorderAndSpacing;
 				$imageScalingCorrection = max($imagesInRowScaling, $imageScalingCorrection);
 			}
 
@@ -280,7 +319,7 @@ class ImageGalleryContentObject {
 				);
 			}
 
-			$this->calculatedWidth = floor($maximumRowWidth / $imageScalingCorrection);
+			$this->calculatedWidth = floor($maximumRowWidth / $imageScalingCorrection) + $galleryWidthMinusBorderAndSpacing;
 
 			// User entered a predefined width
 		} elseif ($equalImageWidth) {
@@ -288,7 +327,7 @@ class ImageGalleryContentObject {
 
 				// Calculate the scaling correction when the total of images is wider than the gallery width
 			$totalRowWidth = $this->columns * $equalImageWidth;
-			$imagesInRowScaling = $totalRowWidth / $galleryWidth;
+			$imagesInRowScaling = $totalRowWidth / $galleryWidthMinusBorderAndSpacing;
 			$imageScalingCorrection = max($imagesInRowScaling, $imageScalingCorrection);
 
 				// Set the corrected dimensions for each image
@@ -303,11 +342,11 @@ class ImageGalleryContentObject {
 				);
 			}
 
-			$this->calculatedWidth = floor($totalRowWidth / $imageScalingCorrection);
+			$this->calculatedWidth = floor($totalRowWidth / $imageScalingCorrection) + $galleryWidthMinusBorderAndSpacing;
 
 			// Automatic setting of width and height
 		} else {
-			$imageWidth = intval($galleryWidth / $this->columns);
+			$imageWidth = intval($galleryWidthMinusBorderAndSpacing / $this->columns);
 
 			foreach ($this->fileObjects as $key => $fileObject) {
 				$imageHeight = floor(
@@ -324,65 +363,6 @@ class ImageGalleryContentObject {
 	}
 
 	/**
-	 * Add page style when a no_wrap is used
-	 *
-	 * @return string The class in the page style
-	 */
-	protected function getGalleryClassBasedOnTextWrap() {
-		$galleryClass = '';
-
-		$textWrap = (boolean) $this->contentObject->stdWrap(
-			$this->typoScriptConfiguration['textWrap'],
-			$this->typoScriptConfiguration['textWrap.']
-		);
-
-		if (!$textWrap) {
-			if ($this->definedWidth === $this->calculatedWidth) {
-				$this->addPageStyle(
-					'.csc-textpic-intext-right-nowrap .csc-textpic-text',
-					'margin-right: ' . $this->definedWidth . 'px;'
-				);
-				$this->addPageStyle(
-					'.csc-textpic-intext-left-nowrap .csc-textpic-text',
-					'margin-left: ' . $this->definedWidth . 'px;'
-				);
-			} else {
-				$this->addPageStyle(
-					'.csc-textpic-intext-right-nowrap.csc-textpic-intext-nowrap-' . $this->calculatedWidth . ' .csc-textpic-text',
-					'margin-right: ' . $this->calculatedWidth . 'px;'
-				);
-				$this->addPageStyle(
-					'.csc-textpic-intext-left-nowrap.csc-textpic-intext-nowrap-' . $this->calculatedWidth . ' .csc-textpic-text',
-					'margin-left: ' . $this->calculatedWidth . 'px;'
-				);
-				$galleryClass = 'csc-textpic-intext-nowrap-' . $this->calculatedWidth;
-			}
-		}
-
-		return $galleryClass;
-	}
-
-	/**
-	 * Add a style to the page, specific for this page
-	 *
-	 * The selector can be a contextual selector, like '#id .class p'
-	 * The presence of the selector is checked to avoid multiple entries of the
-	 * same selector.
-	 *
-	 * @param string $selector The selector
-	 * @param string $declaration The declaration
-	 * @return void
-	 */
-	protected function addPageStyle($selector, $declaration) {
-		if (!isset($GLOBALS['TSFE']->tmpl->setup['plugin.']['tx_cssstyledcontent.']['_CSS_PAGE_STYLE'])) {
-			$GLOBALS['TSFE']->tmpl->setup['plugin.']['tx_cssstyledcontent.']['_CSS_PAGE_STYLE'] = array();
-		}
-		if (!isset($GLOBALS['TSFE']->tmpl->setup['plugin.']['tx_cssstyledcontent.']['_CSS_PAGE_STYLE'][$selector])) {
-			$GLOBALS['TSFE']->tmpl->setup['plugin.']['tx_cssstyledcontent.']['_CSS_PAGE_STYLE'][$selector] = TAB . $selector . ' { ' . $declaration . ' }';
-		}
-	}
-
-	/**
 	 * Render each file though the renderObj
 	 *
 	 * optionSplit will be applied to allow different settings for each file
@@ -395,11 +375,6 @@ class ImageGalleryContentObject {
 		$GLOBALS['TSFE']->register['FILES_COUNT'] = $this->fileCount;
 		$GLOBALS['TSFE']->register['GALLERY_COLUMNS_COUNT'] = $this->columns;
 		$GLOBALS['TSFE']->register['GALLERY_ROWS_COUNT'] = $this->rows;
-
-		$galleryClass = $this->getGalleryClassBasedOnTextWrap();
-		if ($galleryClass) {
-			$GLOBALS['TSFE']->register['GALLERY_CLASS'] = $galleryClass;
-		}
 
 		$splitConfiguration = $GLOBALS['TSFE']->tmpl->splitConfArray(
 			$this->typoScriptConfiguration,

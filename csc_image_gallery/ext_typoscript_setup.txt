@@ -6,15 +6,11 @@
  * The rendering is HTML5
  *
  * Not taking the following configuration into account:
- * - colSpace
- * - border
- * - borderThick
- * - borderSpace
  * - noRows
- * - textMargin
- * - image_compression
- * - image_effects
- * - imagecaption_position
+ * - textMargin (Not for the gallery itself, but CSS)
+ * - image_compression (Can be done within the renderObj)
+ * - image_effects (Can be done within the renderObj)
+ * - imagecaption_position (
  */
 
 lib.imageGallery = IMAGE_GALLERY
@@ -25,25 +21,15 @@ lib.imageGallery {
 		fieldName = image
 	}
 
-	# Set the amount of columns
+	# Settings for columns
 	columns {
-		field = imagecols
-	}
-
-	# Class generation for no_wrap if value is empty
-	textWrap {
-		cObject = TEXT
-		cObject {
-			value = 1
-			if {
-				# 25 = intext-right-nowrap, 26 = intext-left-nowrap
-				value = 25,26
-				isInList {
-					field = imageorient
-				}
-				negate = 1
-			}
+		# Set the amount of columns
+		amount {
+			field = imagecols
 		}
+
+		# Set the spacing between the columns
+		spacing = {$styles.content.imgtext.colSpace}
 	}
 
 	# Set the width of the gallery
@@ -83,18 +69,30 @@ lib.imageGallery {
 		}
 	}
 
-	images {
+	# Settings for single image rendering
+	image {
 		# Set the height of a single image
 		# When the total width exceeds the width of the gallery, the height will be adapted accordingly
-		# Setting a height will overrule the width
+		# Setting a height will overrule the setting image.height
 		height {
 			field = imageheight
 		}
 		# Set the width of a single image
 		# When the total width exceeds the width of the gallery, the height will be adapted accordingly
-		# When the height is set, width will not be taken into account
+		# When the setting image.height is set, width will not be taken into account
 		width {
 			field = imagewidth
+		}
+		# Border settings
+		border {
+			# Add border
+			on {
+				field = imageborder
+			}
+			# Width of the border
+			width = {$styles.content.imgtext.borderThick}
+			# Padding between border and image
+			padding = {$styles.content.imgtext.borderSpace}
 		}
 	}
 
@@ -202,7 +200,64 @@ lib.imageGallery {
 	}
 
 	# Wrap around the whole gallery
-	dataWrap = <div class="csc-textpic-imagewrap" {register:GALLERY_NOWRAP} data-csc-cols="{register:GALLERY_COLUMNS_COUNT}" data-csc-images="{register:FILES_COUNT}"> | </div>
+	dataWrap {
+		cObject = COA
+		cObject {
+			# Open the div
+			10 = TEXT
+			10 {
+				value = <div
+			}
+
+			# Add the classes to the div
+			20 = COA
+			20 {
+				# Default class
+				10 = TEXT
+				10 {
+					value = csc-textpic-imagewrap
+					noTrimWrap = || |
+				}
+
+				# Class for image borders
+				20 = TEXT
+				20 {
+					value = csc-textpic-border
+					noTrimWrap = || |
+					if {
+						isTrue {
+							field = imageborder
+						}
+					}
+				}
+				stdWrap {
+					trim = 1
+					noTrimWrap = | class="|"|
+					required = 1
+				}
+			}
+
+			# Add the amount of columns in attribute "data-csc-cols" for responsive gallery
+			30 = TEXT
+			30 {
+				data = register:GALLERY_COLUMNS_COUNT
+				noTrimWrap = | data-csc-cols="|"|
+			}
+
+			# Add the amount of images in attribute "data-csc-images" for responsive gallery
+			40 = TEXT
+			40 {
+				data = register:FILES_COUNT
+				noTrimWrap = | data-csc-images="|"|
+			}
+
+			# Close the div
+			50 = TEXT
+			50 {
+				value = > | </div>
+			}
+		}
+	}
 
 	# Extra wrap for centered gallery
 	innerWrap = <div class="csc-textpic-center-outer"><div class="csc-textpic-center-inner"> | </div></div>
@@ -244,8 +299,8 @@ tt_content.textpic {
 			10 = < lib.stdheader
 			10 {
 				if {
-					# 25 = intext-right-nowrap, 26 = intext-left-nowrap
-					value = 25,26
+					# 26 = intext-left-nowrap
+					value = 26
 					isInList {
 						field = imageorient
 					}
@@ -262,15 +317,30 @@ tt_content.textpic {
 			override {
 				cObject = COA
 				cObject {
-					10 < tt_content.text.20
+					10 = COA
 					10 {
+						# Render the header in the div with text when no-wrap
+						10 = < lib.stdheader
+						10 {
+							if {
+								# 25 = intext-right-nowrap
+								value = 25
+								isInList {
+									field = imageorient
+								}
+							}
+						}
+
+						20 < tt_content.text.20
+
 						wrap = <div class="csc-textpic-text"> | </div>
 					}
+
 					20 = < lib.imageGallery
 				}
 				if {
-					# 8 = below-center, 9 = below-right, 10 = below-left
-					value = 8,9,10
+					# 8 = below-center, 9 = below-right, 10 = below-left, 25 = intext-right-nowrap
+					value = 8,9,10,25
 					isInList {
 						field = imageorient
 					}
@@ -278,7 +348,7 @@ tt_content.textpic {
 			}
 
 			outerWrap {
-				# Wrap text and images in a div with classes set to the image position and alignment
+				# Wrap text and gallery in a div with classes set to the image position and alignment
 				cObject = CASE
 				cObject {
 					key {
@@ -365,3 +435,108 @@ tt_content.image {
 		}
 	}
 }
+
+plugin.tx_cssstyledcontent._CSS_DEFAULT_STYLE >
+plugin.tx_cssstyledcontent._CSS_DEFAULT_STYLE (
+	/* Headers */
+	.csc-header-alignment-center { text-align: center; }
+	.csc-header-alignment-right { text-align: right; }
+	.csc-header-alignment-left { text-align: left; }
+
+	div.csc-textpic-responsive, div.csc-textpic-responsive * { -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box;  }
+
+	/* Clear floats after csc-textpic and after csc-textpic-imagerow */
+	div.csc-textpic, div.csc-textpic div.csc-textpic-imagerow, ul.csc-uploads li { overflow: hidden; }
+
+	/* Settings for figure and figcaption */
+	div.csc-textpic .csc-textpic-imagewrap figure, div.csc-textpic figure.csc-textpic-imagewrap { margin: 0; display: table; }
+
+	/* Captions */
+	figcaption.csc-textpic-caption { display: table-caption; }
+	.csc-textpic-caption { text-align: left; caption-side: bottom; }
+	div.csc-textpic-caption-c .csc-textpic-caption, .csc-textpic-imagewrap .csc-textpic-caption-c { text-align: center; }
+	div.csc-textpic-caption-r .csc-textpic-caption, .csc-textpic-imagewrap .csc-textpic-caption-r { text-align: right; }
+	div.csc-textpic-caption-l .csc-textpic-caption, .csc-textpic-imagewrap .csc-textpic-caption-l { text-align: left; }
+
+	/* Gallery position nowrap */
+	div.csc-textpic-intext-right-nowrap, div.csc-textpic-intext-left-nowrap { display: table; }
+
+	/* Use flexible box for rows when nowrap is used */
+	div.csc-textpic-intext-right-nowrap .csc-textpic-imagerow, div.csc-textpic-intext-left-nowrap .csc-textpic-imagerow { display: flex; }
+
+	/* Float the columns */
+	div.csc-textpic div.csc-textpic-imagecolumn { float: left; }
+
+	/* Border just around the image */
+	.csc-textpic-border .csc-textpic-image {
+		border: {$styles.content.imgtext.borderThick}px solid {$styles.content.imgtext.borderColor};
+		padding: {$styles.content.imgtext.borderSpace}px;
+	}
+	div.csc-textpic-imagewrap img { border: none; display: block; }
+
+	/* Space below each row, except for last row */
+	div.csc-textpic-imagerow { margin-bottom: {$styles.content.imgtext.rowSpace}px; }
+	div.csc-textpic-imagerow:last-child { margin-bottom: 0; }
+
+	/* Space around image columns, except for last column */
+	div.csc-textpic-imagecolumn { margin-right: {$styles.content.imgtext.colSpace}px; }
+	div.csc-textpic-imagecolumn:last-child { margin-right: 0; }
+
+	/* Add margin from image-block to text (in case the block is in the text) */
+	div.csc-textpic-intext-left .csc-textpic-imagewrap { margin: 0 {$styles.content.imgtext.textMargin}px {$styles.content.imgtext.textMargin}px 0; }
+	div.csc-textpic-intext-left-nowrap .csc-textpic-imagewrap { padding-right: {$styles.content.imgtext.textMargin}px; }
+	div.csc-textpic-intext-right .csc-textpic-imagewrap{ margin: 0 0 {$styles.content.imgtext.textMargin}px {$styles.content.imgtext.textMargin}px; }
+	div.csc-textpic-intext-right-nowrap .csc-textpic-imagewrap { padding-left: {$styles.content.imgtext.textMargin}px; }
+
+	/* Positioning of images: */
+
+	/* Center (above or below) */
+	div.csc-textpic-center .csc-textpic-imagewrap, div.csc-textpic-center figure.csc-textpic-imagewrap { overflow: hidden; }
+	div.csc-textpic-center .csc-textpic-center-outer { position: relative; float: right; right: 50%; }
+	div.csc-textpic-center .csc-textpic-center-inner { position: relative; float: right; right: -50%; }
+
+	/* Right (above or below) */
+	div.csc-textpic-right .csc-textpic-imagewrap { float: right; }
+	div.csc-textpic-right div.csc-textpic-text { clear: right; }
+
+	/* Left (above or below) */
+	div.csc-textpic-left .csc-textpic-imagewrap { float: left; }
+	div.csc-textpic-left div.csc-textpic-text { clear: left; }
+
+	/* Left (in text) */
+	div.csc-textpic-intext-left .csc-textpic-imagewrap { float: left; }
+
+	/* Right (in text) */
+	div.csc-textpic-intext-right .csc-textpic-imagewrap { float: right; }
+
+	/* Left and Right (in text, no wrap around) */
+	div.csc-textpic-intext-right-nowrap .csc-textpic-imagewrap,
+	div.csc-textpic-intext-left-nowrap .csc-textpic-imagewrap,
+	div.csc-textpic-intext-right-nowrap div.csc-textpic-text,
+	div.csc-textpic-intext-left-nowrap div.csc-textpic-text { display: table-cell; }
+	div.csc-textpic-intext-right-nowrap div.csc-textpic-text, div.csc-textpic-intext-left-nowrap div.csc-textpic-text { vertical-align: top }
+
+	div.csc-textpic div.csc-textpic-imagerow-last, div.csc-textpic div.csc-textpic-imagerow-none div.csc-textpic-last { margin-bottom: 0; }
+
+	/* Browser fixes: */
+
+	/* Fix for unordered and ordered list with image "In text, left" */
+	.csc-textpic-intext-left ol, .csc-textpic-intext-left ul { padding-left: 40px; overflow: auto; }
+
+	/* File Links */
+	ul.csc-uploads { padding: 0; }
+	ul.csc-uploads li { list-style: none outside none; margin: 1em 0; }
+	ul.csc-uploads img { float: left; padding-right: 1em; vertical-align: top; }
+	ul.csc-uploads span { display: block; }
+	ul.csc-uploads span.csc-uploads-fileName { text-decoration: underline; }
+
+	/* Table background colors: */
+
+	table.contenttable-color-1 { background-color: {$styles.content.table.backgroundColor.1}; }
+	table.contenttable-color-2 { background-color: {$styles.content.table.backgroundColor.2}; }
+	table.contenttable-color-240 { background-color: {$styles.content.table.backgroundColor.240}; }
+	table.contenttable-color-241 { background-color: {$styles.content.table.backgroundColor.241}; }
+	table.contenttable-color-242 { background-color: {$styles.content.table.backgroundColor.242}; }
+	table.contenttable-color-243 { background-color: {$styles.content.table.backgroundColor.243}; }
+	table.contenttable-color-244 { background-color: {$styles.content.table.backgroundColor.244}; }
+)

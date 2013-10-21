@@ -299,8 +299,8 @@ tt_content.textpic {
 			10 = < lib.stdheader
 			10 {
 				if {
-					# 26 = intext-left-nowrap
-					value = 26
+					# 25 = intext-right-nowrap, 26 = intext-left-nowrap
+					value = 25,26
 					isInList {
 						field = imageorient
 					}
@@ -319,19 +319,7 @@ tt_content.textpic {
 				cObject {
 					10 = COA
 					10 {
-						# Render the header in the div with text when no-wrap
-						10 = < lib.stdheader
-						10 {
-							if {
-								# 25 = intext-right-nowrap
-								value = 25
-								isInList {
-									field = imageorient
-								}
-							}
-						}
-
-						20 < tt_content.text.20
+						10 < tt_content.text.20
 
 						wrap = <div class="csc-textpic-text"> | </div>
 					}
@@ -339,8 +327,8 @@ tt_content.textpic {
 					20 = < lib.imageGallery
 				}
 				if {
-					# 8 = below-center, 9 = below-right, 10 = below-left, 25 = intext-right-nowrap
-					value = 8,9,10,25
+					# 8 = below-center, 9 = below-right, 10 = below-left
+					value = 8,9,10
 					isInList {
 						field = imageorient
 					}
@@ -458,12 +446,6 @@ plugin.tx_cssstyledcontent._CSS_DEFAULT_STYLE (
 	div.csc-textpic-caption-r .csc-textpic-caption, .csc-textpic-imagewrap .csc-textpic-caption-r { text-align: right; }
 	div.csc-textpic-caption-l .csc-textpic-caption, .csc-textpic-imagewrap .csc-textpic-caption-l { text-align: left; }
 
-	/* Gallery position nowrap */
-	div.csc-textpic-intext-right-nowrap, div.csc-textpic-intext-left-nowrap { display: table; }
-
-	/* Use flexible box for rows when nowrap is used */
-	div.csc-textpic-intext-right-nowrap .csc-textpic-imagerow, div.csc-textpic-intext-left-nowrap .csc-textpic-imagerow { display: flex; }
-
 	/* Float the columns */
 	div.csc-textpic div.csc-textpic-imagecolumn { float: left; }
 
@@ -484,9 +466,9 @@ plugin.tx_cssstyledcontent._CSS_DEFAULT_STYLE (
 
 	/* Add margin from image-block to text (in case the block is in the text) */
 	div.csc-textpic-intext-left .csc-textpic-imagewrap { margin: 0 {$styles.content.imgtext.textMargin}px {$styles.content.imgtext.textMargin}px 0; }
-	div.csc-textpic-intext-left-nowrap .csc-textpic-imagewrap { padding-right: {$styles.content.imgtext.textMargin}px; }
+	div.csc-textpic-intext-left-nowrap .csc-textpic-imagewrap { margin-right: {$styles.content.imgtext.textMargin}px; }
 	div.csc-textpic-intext-right .csc-textpic-imagewrap{ margin: 0 0 {$styles.content.imgtext.textMargin}px {$styles.content.imgtext.textMargin}px; }
-	div.csc-textpic-intext-right-nowrap .csc-textpic-imagewrap { padding-left: {$styles.content.imgtext.textMargin}px; }
+	div.csc-textpic-intext-right-nowrap .csc-textpic-imagewrap { margin-left: {$styles.content.imgtext.textMargin}px; }
 
 	/* Positioning of images: */
 
@@ -503,20 +485,16 @@ plugin.tx_cssstyledcontent._CSS_DEFAULT_STYLE (
 	div.csc-textpic-left .csc-textpic-imagewrap { float: left; }
 	div.csc-textpic-left div.csc-textpic-text { clear: left; }
 
-	/* Left (in text) */
-	div.csc-textpic-intext-left .csc-textpic-imagewrap { float: left; }
+	/* Left (in text, in text no wrap) */
+	div.csc-textpic-intext-left .csc-textpic-imagewrap, div.csc-textpic-intext-left-nowrap .csc-textpic-imagewrap { float: left; }
 
-	/* Right (in text) */
-	div.csc-textpic-intext-right .csc-textpic-imagewrap { float: right; }
-
-	/* Left and Right (in text, no wrap around) */
-	div.csc-textpic-intext-right-nowrap .csc-textpic-imagewrap,
-	div.csc-textpic-intext-left-nowrap .csc-textpic-imagewrap,
-	div.csc-textpic-intext-right-nowrap div.csc-textpic-text,
-	div.csc-textpic-intext-left-nowrap div.csc-textpic-text { display: table-cell; }
-	div.csc-textpic-intext-right-nowrap div.csc-textpic-text, div.csc-textpic-intext-left-nowrap div.csc-textpic-text { vertical-align: top }
+	/* Right (in text, in text no wrap) */
+	div.csc-textpic-intext-right .csc-textpic-imagewrap, div.csc-textpic-intext-right-nowrap .csc-textpic-imagewrap { float: right; }
 
 	div.csc-textpic div.csc-textpic-imagerow-last, div.csc-textpic div.csc-textpic-imagerow-none div.csc-textpic-last { margin-bottom: 0; }
+
+	/* Positioning of text: */
+	div.csc-textpic-intext-left-nowrap .csc-textpic-text, div.csc-textpic-intext-right-nowrap .csc-textpic-text { width: auto; overflow: hidden; }
 
 	/* Browser fixes: */
 
